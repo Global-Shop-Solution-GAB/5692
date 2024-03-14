@@ -1,0 +1,476 @@
+Program.Sub.ScreenSU.Start
+Gui.frmQuickEntry..Create
+Gui.frmQuickEntry..Caption("Quick Line Entry")
+Gui.frmQuickEntry..Size(15330,12975)
+Gui.frmQuickEntry..MinX(0)
+Gui.frmQuickEntry..MinY(0)
+Gui.frmQuickEntry..Position(0,0)
+Gui.frmQuickEntry..BackColor(-2147483633)
+Gui.frmQuickEntry..MousePointer(0)
+Gui.frmQuickEntry..Event(UnLoad,frmQuickEntry_UnLoad)
+Gui.frmQuickEntry.gsgcInventory.Create(GsGridControl)
+Gui.frmQuickEntry.gsgcInventory.Size(14850,5430)
+Gui.frmQuickEntry.gsgcInventory.Position(90,690)
+Gui.frmQuickEntry.gsgcInventory.Event(RowCellClick,gsgcInventory_RowCellClick)
+Gui.frmQuickEntry.gsgcOELines.Create(GsGridControl)
+Gui.frmQuickEntry.gsgcOELines.Size(14805,5280)
+Gui.frmQuickEntry.gsgcOELines.Position(120,6420)
+Gui.frmQuickEntry.cmdAdd.Create(Button)
+Gui.frmQuickEntry.cmdAdd.Size(1665,405)
+Gui.frmQuickEntry.cmdAdd.Position(165,11790)
+Gui.frmQuickEntry.cmdAdd.Caption("Add Lines")
+Gui.frmQuickEntry.cmdAdd.Event(Click,cmdAdd_Click)
+Gui.frmQuickEntry.chkCache.Create(CheckBox)
+Gui.frmQuickEntry.chkCache.Size(2835,360)
+Gui.frmQuickEntry.chkCache.Position(105,165)
+Gui.frmQuickEntry.chkCache.Caption("Cache Mode")
+Gui.frmQuickEntry.chkCache.Event(Click,chkCache_Click)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+V.global.sbuilddata.Declare
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+f.Intrinsic.Control.Try
+	f.Intrinsic.Control.If(v.Caller.hook,=,"15200")
+		'No variables exists, created call in service web.
+		'v.Passed.000141.Set("Add Lines") 
+	'15100 (Script 1 Button)
+	f.Intrinsic.Control.Else
+		v.Local.sCacheFile.Declare(string)
+		v.Local.sContent.Declare(string)
+		v.Local.bCacheFile.Declare(Boolean)
+	
+		'ADD, Part, Description, QTY, Price, Due Date, UM, Code Sort, M or P
+		f.ODBC.Connection!con.openconnection(v.Ambient.PDSN,v.Ambient.PUser,v.Ambient.PPass,1800)
+		
+		'Check if the temp file exists	
+		f.Intrinsic.String.Concat(v.Caller.LocalGSSTempDir,v.Caller.CompanyCode,"_",v.Caller.User,"_IQE.xml",v.Local.sCacheFile)
+		f.Intrinsic.File.Exists(v.Local.sCacheFile,v.Local.bCacheFile)
+		f.Intrinsic.Control.If(v.Local.bCacheFile)
+			f.Data.DataTable.CreateFromXML("dtINV",v.Local.sCacheFile,true)
+			gui.frmQuickEntry.chkCache.Value(1)
+		f.Intrinsic.Control.Else
+			f.Data.DataTable.CreateFromSQL("dtINV","con","SELECT DISTINCT '+' as 'Add', Inventory_MSTR.PART as 'GSSPart', IF(INV_LXR.DISPLAY_PART is null, RTRIM(SUBSTRING(INVENTORY_MSTR.PART, 1, 17)), RTRIM(INV_LXR.DISPLAY_PART)) AS 'PartNumber', RTRIM(INVENTORY_MSTR.DESCRIPTION) AS 'Description', '' as QTY, INVENTORY_MSTR.AMT_PRICE AS 'Price', now() AS 'DueDate', INVENTORY_MSTR.UM_INVENTORY AS 'UoM', INVENTORY_MSTR.CODE_SORT AS 'SortCode', INVENTORY_MSTR.PRODUCT_LINE AS 'ProductLine', INVENTORY_MST2.CODE_SOURCE AS 'MFPJ',  INVENTORY_MST2.NAME_VENDOR AS 'Vendor' from INVENTORY_MSTR LEFT OUTER JOIN INVENTORY_MST2 ON INVENTORY_MSTR.PART = INVENTORY_MST2.PART AND INVENTORY_MSTR.LOCATION = INVENTORY_MST2.LOCATION LEFT OUTER JOIN INV_LXR ON INVENTORY_MSTR.PART = INV_LXR.GSS_PART ORDER BY 'PartNumber'",true)
+		f.Intrinsic.Control.EndIf
+		
+		f.Data.DataTable.Clone("dtINV","dtLines",true)
+		GUI.frmQuickEntry.gsgcOELines.DataSource("dtLines")
+		gui.frmQuickEntry.gsgcInventory.DataSource("dtINV")
+		
+		gui.frmQuickEntry.gsgcOELines.AddGridviewFromDatatable("gvLines","dtLines")
+		gui.frmQuickEntry.gsgcInventory.AddGridviewFromDatatable("gvINV","dtINV")
+		
+		gui.frmQuickEntry.gsgcInventory.anchor(15)
+		gui.frmQuickEntry.gsgcOELines.anchor(14)
+		gui.frmQuickEntry.txtGross.anchor(10)
+		gui.frmQuickEntry.txtTaxes.anchor(10)
+		gui.frmQuickEntry.txtTotal.anchor(10)
+		gui.frmQuickEntry.lblTaxes.anchor(10)
+		gui.frmQuickEntry.lblTotal.anchor(10)
+		gui.frmQuickEntry.lblGross.anchor(10)
+		gui.frmQuickEntry.cmdAdd.anchor(6)
+		
+		
+		Gui.frmQuickEntry.gsgcInventory.setgridviewproperty("gvINV","OptionsViewShowGroupPanel",True)
+		Gui.frmQuickEntry.gsgcInventory.setgridviewproperty("gvINV","OptionsFindAlwaysVisible",True)
+		Gui.frmQuickEntry.gsgcOELines.SetGridviewProperty("gvLines","AllowDeleteRows",True)
+		
+		Gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","Add","MinWidth","5")
+		Gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","QTY","MinWidth","20")
+		Gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","Description","MinWidth","130")
+			
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","DueDate","DisplayCustomDatetime","d")
+		
+		'Bold
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","QTY","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","Price","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","DueDate","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","Add","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","PartNumber","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","Description","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","UoM","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","SortCode","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","ProductLine","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","MFPJ","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","Vendor","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","QTY","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","Price","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","DueDate","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","Add","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","PartNumber","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","Description","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","UoM","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","SortCode","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","ProductLine","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","MFPJ","HeaderFontBold","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","Vendor","HeaderFontBold","True")
+		
+		'Caption
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","PartNumber","Caption","Part")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","DueDate","Caption","Due Date")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","SortCode","Caption","Sort Code")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","ProductLine","Caption","Product Line")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","MFPJ","Caption","Manufactured / Purchase")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","PartNumber","Caption","Part")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","DueDate","Caption","Due Date")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","SortCode","Caption","Sort Code")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","ProductLine","Caption","Product Line")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","MFPJ","Caption","Manufactured / Purchase")
+		
+		'Read Only
+		Gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","QTY","ReadOnly","False")
+		Gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","Price","ReadOnly","False")
+		Gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","DueDate","ReadOnly","False")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","Add","ReadOnly","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","PartNumber","ReadOnly","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","Description","ReadOnly","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","UoM","ReadOnly","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","SortCode","ReadOnly","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","ProductLine","ReadOnly","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","MFPJ","ReadOnly","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","Vendor","ReadOnly","True")
+		Gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","QTY","ReadOnly","False")
+		Gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","Price","ReadOnly","False")
+		Gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","DueDate","ReadOnly","False")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","Add","ReadOnly","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","PartNumber","ReadOnly","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","Description","ReadOnly","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","UoM","ReadOnly","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","SortCode","ReadOnly","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","ProductLine","ReadOnly","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","MFPJ","ReadOnly","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","Vendor","ReadOnly","True")
+		
+		'Editable
+		Gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","QTY","AllowEdit","True")
+		Gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","Price","AllowEdit","True")
+		Gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","DueDate","AllowEdit","True")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","Add","AllowEdit","False")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","PartNumber","AllowEdit","False")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","Description","AllowEdit","False")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","UoM","AllowEdit","False")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","SortCode","AllowEdit","False")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","ProductLine","AllowEdit","False")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","MFPJ","AllowEdit","False")
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","Vendor","AllowEdit","False")
+		Gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","QTY","AllowEdit","True")
+		Gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","Price","AllowEdit","True")
+		Gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","DueDate","AllowEdit","True")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","Add","AllowEdit","False")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","PartNumber","AllowEdit","False")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","Description","AllowEdit","False")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","UoM","AllowEdit","False")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","SortCode","AllowEdit","False")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","ProductLine","AllowEdit","False")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","MFPJ","AllowEdit","False")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","Vendor","AllowEdit","False")
+		
+		'Visible
+		gui.frmQuickEntry.gsgcInventory.SetColumnProperty("gvINV","GSSPart","Visible","False")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","Add","Visible","False")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","GSSPart","Visible","False")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","SortCode","Visible","False")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","ProductLine","Visible","False")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","MFPJ","Visible","False")
+		gui.frmQuickEntry.gsgcOELines.SetColumnProperty("gvLines","Vendor","Visible","False")
+		
+		gui.frmQuickEntry..Show
+	f.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Catch
+	F.Intrinsic.UI.Msgbox(V.Ambient.ErrorDescription)
+	f.Intrinsic.Control.CallSub(frmQuickEntry_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.Main.End
+
+Program.Sub.cmdAdd_Click.Start
+f.Intrinsic.Control.Try
+	v.Local.sfile.Declare
+	v.Local.sparams.Declare
+	v.Local.sfiledir.Declare
+	v.Local.sFullFile.Declare
+	V.Local.sSQL.Declare
+	v.Local.sret.Declare
+	v.Local.sOrder.Declare
+	v.local.sDesc.declare
+	v.local.sProdLineCD.declare
+	v.local.sUM.declare
+	v.Local.sCustPO.Declare
+	v.local.sCustomer.Declare
+	v.Local.sPart.Declare
+	V.Local.sRowState.Declare
+	v.Local.dDateNow.Declare
+	v.Local.i.Declare(long)
+	v.Local.j.Declare(long)
+	V.Local.iLine.Declare
+	v.local.fOrderQty.declare
+	v.local.fPrice.declare
+	v.local.fExtension.declare
+	
+	v.Local.dDateNow.Set(v.Ambient.Now)
+	f.Intrinsic.String.LPad(v.Passed.009001,"0",7,v.Local.sOrder)
+	f.Intrinsic.String.Build("SELECT CUSTOMER, CUSTOMER_PO FROM V_ORDER_HEADER WHERE ORDER_NO='{0}'",v.Local.sOrder,v.Local.ssql)
+	f.ODBC.Connection!con.executeandreturn(v.Local.SSQL,v.Local.sRet)
+	f.Intrinsic.String.Split(v.Local.sret,"*!*",v.Local.sret)
+	v.Local.sCustomer.Set(v.Local.sret(0))
+	v.Local.sCustPO.Set(v.Local.sret(1))
+'	v.Local.sOrder.Set("0100084")
+'	v.Local.sCustomer.Set("1111")
+'	v.Local.sCustPO.Set("")
+	
+	f.Intrinsic.Control.For(v.Local.j,0,v.DataTable.dtLines.RowCount--,1)	
+		v.local.sRowState.set(v.datatable.dtLines(v.local.i).rowstate)
+		f.intrinsic.control.if(v.local.sRowState,<>,8)
+			v.local.sPart.Set(v.DataTable.dtLines(v.Local.j).GSSPart!fieldvaltrim)
+			v.Local.dDateNow.Set(v.DataTable.dtLines(v.Local.j).DueDate!fieldval)
+			v.Local.sUM.Set(v.DataTable.dtLines(v.Local.j).UoM!fieldvaltrim)
+			v.Local.sDesc.Set(v.DataTable.dtLines(v.Local.j).Description!fieldvaltrim)
+			v.Local.sProdLineCD.Set(v.DataTable.dtLines(v.Local.j).ProductLine!fieldvaltrim)
+			V.local.fOrderQty.Set(v.DataTable.dtLines(v.Local.j).QTY!fieldval)
+			V.Local.fPrice.Set(v.DataTable.dtLines(v.Local.j).Price!fieldval)
+		
+			f.Intrinsic.Control.CallSub(addLine,"fPrice",v.Local.fPrice,"fOrderQty",v.Local.fOrderQty,"sPart",v.Local.sPart,"sDesc",v.Local.sDesc,"sUM",v.Local.sUM,"sOrder",v.Local.sOrder,"sProdLineCD",v.Local.sProdLineCD,"sCustomer",v.Local.sCustomer)
+		F.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.Next(v.Local.j)
+
+	F.Intrinsic.String.Concat("LD",V.Caller.Terminal,V.Caller.CompanyCode,V.Local.sFile)
+	F.Intrinsic.String.Concat(V.Caller.FilesDir,"\",V.Local.sFile,V.Local.sFileDir)
+	F.Intrinsic.File.String2File(V.Local.sFileDir,V.global.sBuildData)
+	f.Intrinsic.String.Concat(v.Caller.FilesDir,"\",v.Local.sfile,v.Local.sfullfile)
+	F.Intrinsic.String.ConcatCallWrapperArgs(v.Local.sOrder,"O",V.Local.sFullFile,V.Local.sParams)
+	F.Global.General.CallWrapperSync(7020,V.Local.sParams)
+	f.Intrinsic.Control.CallSub(frmQuickEntry_UnLoad)
+
+f.Intrinsic.Control.catch
+	f.Intrinsic.UI.Msgbox(v.Ambient.ErrorDescription)
+	f.Intrinsic.Control.CallSub(frmQuickEntry_UnLoad)
+f.Intrinsic.Control.EndTry
+Program.Sub.cmdAdd_Click.End
+
+
+Program.Sub.gsgcInventory_RowCellClick.Start
+F.Intrinsic.Control.Try
+	v.Local.sPOQuoteFlag.Declare(string)
+	v.Local.sparams.Declare(string)
+	v.Local.spart.Declare(string)
+	v.Local.sret.Declare(string)
+	V.Local.lIndex.Declare(long)
+	
+	f.Intrinsic.Control.SelectCase(V.Args.Column)
+		f.Intrinsic.Control.Case("Add")
+			f.Data.DataTable.AddRow("dtLines","GSSPart",v.DataTable.dtINV(v.Args.rowindex).GSSPart!fieldvaltrim,"PartNumber",v.DataTable.dtINV(v.Args.rowindex).PartNumber!fieldvaltrim,"Description",v.DataTable.dtINV(v.Args.rowindex).Description!fieldvaltrim,"Qty",v.DataTable.dtINV(v.Args.rowindex).QTY!fieldvaltrim,"Price",v.DataTable.dtINV(v.Args.rowindex).Price!fieldvaltrim,"DueDate",v.DataTable.dtINV(v.Args.rowindex).DueDate!fieldvaltrim,"UoM",v.DataTable.dtINV(v.Args.rowindex).UoM!fieldvaltrim,"ProductLine",v.DataTable.dtINV(v.Args.rowindex).Productline!fieldvaltrim)
+	f.Intrinsic.Control.EndSelect
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.UI.Msgbox(V.Ambient.ErrorDescription)
+	f.Intrinsic.Control.CallSub(frmQuickEntry_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.gsgcInventory_RowCellClick.End
+
+
+Program.Sub.chkCache_Click.Start
+F.Intrinsic.Control.Try
+	v.Local.sCacheFile.Declare(string)
+	v.Local.bCacheFile.Declare(Boolean)
+	f.Intrinsic.String.Concat(v.Caller.LocalGSSTempDir,v.Caller.CompanyCode,"_",v.Caller.User,"_IQE.xml",v.Local.sCacheFile)
+	f.Intrinsic.File.Exists(v.Local.sCacheFile,v.Local.bCacheFile)
+	
+	f.Intrinsic.Control.If(v.Local.bCacheFile)
+		f.Intrinsic.Control.If(v.Screen.frmQuickEntry!chkCache.Value,=,0)
+			f.Intrinsic.File.DeleteFile(v.Local.sCacheFile)
+		f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.else
+		'If checked, create the file
+		f.Intrinsic.Control.If(v.Screen.frmQuickEntry!chkCache.Value,=,1)
+			f.Data.DataTable.savetoxml("dtINV",0,true,v.Local.sCacheFile)	
+		f.Intrinsic.Control.Else
+			f.Intrinsic.File.DeleteFile(v.Local.sCacheFile)
+		f.Intrinsic.Control.EndIf
+	f.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Catch
+	F.Intrinsic.UI.Msgbox(V.Ambient.ErrorDescription)
+	f.Intrinsic.Control.CallSub(frmQuickEntry_UnLoad)
+F.Intrinsic.Control.EndTry
+Program.Sub.chkCache_Click.End
+
+Program.Sub.addLine.Start
+f.Intrinsic.Control.Try
+	v.Local.sSql.Declare
+	v.Local.sRet.Declare
+	v.Local.sTemp.Declare
+	v.Local.j.Declare(long)
+	v.Local.fDiscountPrice.Declare
+	
+	'Customer, 7,2 Customer Number: ***REQUIRED*** unless using ordupmnu to choose customer id.
+	F.Intrinsic.String.RPad(V.args.sCustomer.Trim," ",7,V.Local.sRet)
+	F.Intrinsic.String.Build("{0}{1}","O",V.Local.sRet,V.Local.sTemp)
+	
+	'OrderNo, 7,9 If AutoNumbering Turned on can be left blank, otherwise a required field with leading zeros
+	V.Local.sRet.Set("")
+	F.Intrinsic.String.LPad(V.args.sOrder,"0",7,V.Local.sRet)
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",15,V.Local.sTemp)
+				
+	'*** 20 Char Part# - PART, 20,16***REQUIRED***
+	'Part Number,17,16,17 character part number
+	'Part Rev,3,33,***REQUIRED*** if using part rev and a revision exists OR if NOT using part revision and part is longer than 17 characters long.
+	V.Local.sRet.Set(V.args.sPart)
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,v.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",53,V.Local.sTemp)
+	
+	'Filler,18,36,Not in Use - Leave Blank
+	
+	'Part Location,2,54,Location code
+	V.Local.sRet.Set("")
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",55,V.Local.sTemp)
+				
+	'Product Line,5,56,Product Line of part number
+	V.Local.sRet.Set(v.args.sProdLineCD)
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",60,V.Local.sTemp)
+				
+	'DescriptionPart,30,61,Description of the Part Number Length of 30
+	V.Local.sRet.Set(v.args.sDesc)
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",90,V.Local.sTemp)
+				
+	'Line Number,3,91,Not ***REQUIRED*** Valid input is 1 through 999
+	V.Local.sRet.Set("000")
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",93,V.Local.sTemp)
+				
+	'Line Type,1,94,Line Type up to 1 character
+	f.Intrinsic.String.Build("SELECT DROP_SHIP FROM V_INVENTORY_ALL WHERE PART='{0}'",v.args.sPart,v.Local.ssql)
+	f.ODBC.Connection!con.executeandreturn(v.Local.sSql,v.Local.sRet)
+	f.Intrinsic.Control.If(v.Local.sRet,=,"Y")
+		V.Local.sRet.Set("D")
+	f.Intrinsic.Control.Else	
+		v.Local.sRet.Set("S")
+	f.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",94,V.Local.sTemp)
+	
+	'Qty Ordered,13,95,9.4; REQUIRED  Must enter numeric values with a filler or zeroes- do not enter spaces.  Example entry of 10  0000000100000
+	V.Local.sRet.Set("")
+	F.Intrinsic.String.Format(v.args.fOrderQty,"0.0000",V.Local.sRet)
+	F.Intrinsic.String.Replace(V.Local.sRet,".","",V.Local.sRet)
+	F.Intrinsic.String.LPad(V.Local.sRet,"0",13,V.Local.sRet)
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",107,V.Local.sTemp)
+				
+	'Weight,10,108,7.3 Must enter numeric values with a filler of zeroes- do not use spaces. Example entry of 2.50 would be 0000002500
+	V.Local.sRet.Set("")
+	F.Intrinsic.String.Format("","0.00",V.Local.sRet)
+	F.Intrinsic.String.Replace(V.Local.sRet,".","",V.Local.sRet)
+	F.Intrinsic.String.LPad(V.Local.sRet,"0",10,V.Local.sRet)
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",117,V.Local.sTemp)
+				
+	'Quoted Price,16,118,10.6; REQUIRED in company currency.
+	'Make sure to fill in discount price even if no discounts apply.
+	'Enter leading zeros - do not enter spaces.   Example of 12.50 0000000012500000
+	V.Local.sRet.Set("")
+	V.Local.fDiscountPrice.Set(V.args.fPrice)
+	F.Intrinsic.String.Format(V.Local.fDiscountPrice,"0.000000",V.Local.sRet)
+	F.Intrinsic.String.Replace(V.Local.sRet,".","",V.Local.sRet)
+	F.Intrinsic.String.LPad(V.Local.sRet,"0",16,V.Local.sRet)
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",133,V.Local.sTemp)
+				
+	'User Field 1,30,134,User Field forLine up to 30 characters
+	V.Local.sRet.Set("")
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",163,V.Local.sTemp)
+		
+	'User Field 2,30,164,User Field forLine up to 30 characters
+	V.Local.sRet.Set("")
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",193,V.Local.sTemp)
+		
+	'User Field 3,30,194,User Field forLine up to 30 characters
+	V.Local.sRet.Set("")
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",223,V.Local.sTemp)
+	
+	'User Field 4,30,224,User Field forLine up to 30 characters
+	V.Local.sRet.Set("")
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",253,V.Local.sTemp)
+		
+	'User Field 5,30,254,User Field forLine up to 30 characters
+	V.Local.sRet.Set("")
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",283,V.Local.sTemp)
+				
+	'Unit Of Measure,2,284,Unit of Measure
+	V.Local.sRet.Set(v.args.sUM)
+	F.Intrinsic.String.RPad(V.Local.sRet," ",2,V.Local.sRet)
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",285,V.Local.sTemp)
+				
+	'Price Flag,1,286,"""1"" = Accept zero price for this line.
+	V.Local.sRet.Set(1)
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",286,V.Local.sTemp)
+	
+	'Survey No ,8,287
+	V.Local.sRet.Set("")
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",294,V.Local.sTemp)
+		
+	'Router Val Flag 1,295
+	V.Local.sRet.Set("")
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",295,V.Local.sTemp)
+		
+	'Length ,12,296 Numeric(8,4)
+	V.Local.sRet.Set("")
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",307,V.Local.sTemp)
+		
+	'Width ,12,308 Numeric(8,4)
+	V.Local.sRet.Set("")
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",319,V.Local.sTemp)
+				
+	'Cost Flag,1,320,1 = Accept Cost Override
+	V.Local.sRet.Set("1")
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",320,V.Local.sTemp)
+				
+	'Cost,16,321,10.6; Cost of the Part in company currency.
+	'Enter leading zeros - do not enter spaces.   Example of 12.50  00000012500000
+	V.Local.sRet.Set("")
+	F.Intrinsic.String.Format("","0.000000",V.Local.sRet)
+	F.Intrinsic.String.Replace(V.Local.sRet,".","",V.Local.sRet)
+	F.Intrinsic.String.LPad(V.Local.sRet,"0",16,V.Local.sRet)
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",336,V.Local.sTemp)
+				
+	'Tax Override Flag,1,337,1 = Accept Tax Override
+	V.Local.sRet.Set("")
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",337,V.Local.sTemp)
+	
+	'Tax Flag,1,338,"""E"" for exempt, ""T"" for taxable
+	V.Local.sRet.Set("")
+	F.Intrinsic.String.Build("{0}{1}",V.Local.sTemp,V.Local.sRet,V.Local.sTemp)
+	F.Intrinsic.String.RPad(V.Local.sTemp," ",339,V.Local.sTemp)
+				
+	F.Intrinsic.String.Concat(V.global.sbuilddata,V.Local.stemp,V.Ambient.NewLine,V.global.sbuilddata)
+	'Filler,45,339,Not Used- Leave Blank
+	'***Total Record length of 339 if all used
+f.Intrinsic.Control.Catch
+	F.Intrinsic.UI.Msgbox(V.Ambient.ErrorDescription)
+	f.Intrinsic.Control.CallSub(frmQuickEntry_Unload)
+f.Intrinsic.Control.endtry
+Program.Sub.addLine.End
+
+Program.Sub.frmQuickEntry_UnLoad.Start
+f.ODBC.Connection!con.Close
+f.Intrinsic.Control.End
+Program.Sub.frmQuickEntry_UnLoad.End
+
